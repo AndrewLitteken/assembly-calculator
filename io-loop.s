@@ -12,7 +12,8 @@ digit:
 .globl main
 main:
     ldr r0, =hello
-    
+    mov r1, #0   
+ 
     push {ip, lr}
     bl write_out
     pop {ip, lr}
@@ -27,11 +28,6 @@ read_in:
     mov fp, sp
     push {r4-r10}
 
-    @ Body of function
-    ldr r0, [fp, #-12]
-    ldr r1, [fp, #-8]
-    ldr r2, [fp, #-4]
-    
     @ Call to supervisor mode for read (3)
     mov r1, #0 @ file descriptor to bring input from stdin 
     mov r7, #3
@@ -44,27 +40,38 @@ read_in:
     pop {fp}
     bx lr
 
-.globl write_out @ write to stdout, takes buffer as argument
+.globl write_out @ write to stdout, takes buffer, and type as argument
+@ type is 0 for string and 1 for integer
 write_out:
     @ Prologue
     push {fp} 
     mov fp, sp
-    push {r0}
+    push {r0, r1}
     push {r4-r10}
 
     @ Body of function
-    ldr r0, [fp, #-4] @ allocated buffer
+    ldr r0, [fp, #-8] @ allocated buffer
+    ldr r1, [fp, #-4]
+    cmp r1, #0
+    beq write_out_no_int
+    
+    push {ip, lr}
+    bl itos
+    pop {ip, lr}
+    @ buffer now in r0
 
+write_out_no_int:
+    mov r4, r0
     @ Function to find the length of the buffer
     push {ip, lr}
     bl strlen
     pop {ip, lr}
 
     add r2, r0, #1
+    mov r1, r4
 
     @ Call to supervisor mode for write (4)
     mov r0, #1 @ file descriptor to output to stdout
-    ldr r1, [fp, #-4]
     mov r7, #4
     svc #0
 
