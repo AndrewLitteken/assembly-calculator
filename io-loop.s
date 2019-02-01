@@ -4,7 +4,7 @@ hello:
     .asciz "hello world\n"
 
 number:
-    .asciz "-2018"
+    .asciz "2018"
 
 digit:
     .asciz "%p\n"
@@ -48,7 +48,7 @@ main_zero_buffer:
 
 main_buffer_filled:
     ldr r0, =number
-    mov r1, #5
+    mov r1, #4
 
     push {ip, lr}
     bl stoi
@@ -93,7 +93,8 @@ write_out:
 
     @ Body of function
     ldr r0, [fp, #-8] @ allocated buffer
-    ldr r1, [fp, #-4]
+    ldr r1, [fp, #-4] @ type of string
+    @ convert to string if it is not
     cmp r1, #0
     beq write_out_no_int
     
@@ -109,6 +110,7 @@ write_out_no_int:
     bl strlen
     pop {ip, lr}
 
+    @ add one for the null charactr
     add r2, r0, #1
     mov r1, r4
 
@@ -139,8 +141,10 @@ strlen:
     ldr r1, [fp, #-4]
     
 strlen_loop:
+    @ loop over each byte until you find the null character
     ldrb r2, [r1], #1
 
+    @ increment for each non null character
     cmp r2, #0
     beq strlen_epi
     add r0, r0, #1
@@ -152,6 +156,7 @@ strlen_epi:
     mov sp, fp
     pop {fp}
     bx lr
+
 .globl stoi @ take in string address, and length of string, give back number
 stoi:
     @ Prologue
@@ -161,27 +166,33 @@ stoi:
     push {r4-r10}
     
     mov r0, #0 @ accumulator
-    ldr r1, [fp, #-8]
-    ldr r2, [fp, #-4]
-    mov r3, #1
-    mov r7, #10
+    ldr r1, [fp, #-8] @ string address
+    ldr r2, [fp, #-4] @ length
+    mov r3, #1 @ multiplier
+    mov r7, #10 @ immediate holder
 
-    sub r2, r2, #1
+    sub r2, r2, #1 @ subtract one off th length of correct address calc
 
 stoi_count_back:
+    @ if is less than ero move to the next step
     cmp r2, #0
     blt stoi_epi
-    
+   
+    @ get number from current place in string 
     ldrb r4, [r1, r2] @ get a number
+    @ if it is a dash at the beginning
     cmp r4, #45
     beq stoi_done_neg
+    @ adjust for ascii, adjust with multiplier and add to accumulator
     sub r4, r4, #48
     mul r4, r4, r3
     add r0, r0, r4
     sub r2, r2, #1
+    @ adjust accumulator and start again
     mul r3, r3, r7
     b stoi_count_back
 
+@ multiply by one if found a dash
 stoi_done_neg:
     mov r7, #-1
     mul r0, r0, r7    
@@ -207,7 +218,8 @@ itos:
     mov r7, #10
 
 itos_len_count:
-    mul r6, r6, r7
+    add r5, r5, #1 @ increment counter
+    mul r6, r6, r7 @ increment multiplier
 
     mov r0, r4 @ get args ready for division
     mov r1, r6
@@ -215,28 +227,33 @@ itos_len_count:
     bl div
     pop {ip, lr}
     
-    add r5, r5, #1 @ increment counter
     cmp r0, #0 @ repeat if not at end
     bne itos_len_count
 
     ldr r4, [fp, #-4] @ reload for sanity
     cmp r4, #0 @ see if negative
     bge itos_alloc
+    @ add one and set flag if negative
     add r5, r5, #1
     mov r6, #-1
     mul r4, r4, r6 @ change sign for next step
 
 itos_alloc:
+    @ load buffer and get character
     ldr r0, =buffer
     ldr r0, [r0]
+    @ add one space for the null character
     add r5, r5, #1
     cmp r6, #0 @ if was found to be negative, put a "-" in front
     bge itos_fill_buffer
     mov r6, #45
     strb r6, [r0], #1 @ load the dash in
+    @ subtract from end address and above add to buffer address
     sub r5, r5, #1
 
 itos_fill_buffer:
+    @ subtract one for pointer arithmetic
+    sub r5, r5, #1
     mov r7, r5
     mov r6, #0 @ load in the null character
     strb r6, [r0, r7] @ store null character at the end
@@ -246,20 +263,20 @@ itos_fill_buffer:
     mov r4, r0 @ change address register because of all the function calls
 
 itos_place_char:
-
-    sub r7, r7, #1
-    cmp r7, #0
-    blt itos_done
     
     mov r0, r5
     mov r1, r6
-    push {ip, lr} @ find ones place
+    push {ip, lr} @ find current ones place
     bl mod
     pop {ip, lr}
     
-    add r0, r0, #48
+    add r0, r0, #48 @ add because ASCII
     strb r0, [r4, r7] @ store the number character
+    sub r7, r7, #1 @ subtract one for address calc
+    cmp r7, #0 @ see if done the last character
+    blt itos_done
    
+    @ remove the current ones place
     mov r0, r5
     mov r1, r6 
     push {ip, lr} @ take off order of magnitude
@@ -270,6 +287,7 @@ itos_place_char:
     b itos_place_char
 
 itos_done:
+    @ reset to the beginning of the buffer
     ldr r0, =buffer
     ldr r0, [r0]
 
