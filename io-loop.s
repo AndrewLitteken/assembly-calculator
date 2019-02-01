@@ -3,6 +3,9 @@
 hello:
     .asciz "hello world\n"
 
+number:
+    .asciz "-2018"
+
 digit:
     .asciz "%p\n"
 
@@ -44,9 +47,15 @@ main_zero_buffer:
     
 
 main_buffer_filled:
-    ldr r0, =#-1024
-    mov r1, #1   
- 
+    ldr r0, =number
+    mov r1, #5
+
+    push {ip, lr}
+    bl stoi
+    pop {ip, lr}
+
+    mov r1, #1 
+
     push {ip, lr}
     bl write_out
     pop {ip, lr}
@@ -138,6 +147,46 @@ strlen_loop:
     b strlen_loop
 
 strlen_epi:
+    @ Epilogue
+    pop {r4-r10}
+    mov sp, fp
+    pop {fp}
+    bx lr
+.globl stoi @ take in string address, and length of string, give back number
+stoi:
+    @ Prologue
+    push {fp}
+    mov fp, sp
+    push {r0, r1}
+    push {r4-r10}
+    
+    mov r0, #0 @ accumulator
+    ldr r1, [fp, #-8]
+    ldr r2, [fp, #-4]
+    mov r3, #1
+    mov r7, #10
+
+    sub r2, r2, #1
+
+stoi_count_back:
+    cmp r2, #0
+    blt stoi_epi
+    
+    ldrb r4, [r1, r2] @ get a number
+    cmp r4, #45
+    beq stoi_done_neg
+    sub r4, r4, #48
+    mul r4, r4, r3
+    add r0, r0, r4
+    sub r2, r2, #1
+    mul r3, r3, r7
+    b stoi_count_back
+
+stoi_done_neg:
+    mov r7, #-1
+    mul r0, r0, r7    
+
+stoi_epi:
     @ Epilogue
     pop {r4-r10}
     mov sp, fp
