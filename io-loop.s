@@ -34,20 +34,12 @@ main:
     ldr r1, =buffer
     str r0, [r1]
 
-    mov r2, #0
-    ldr r0, =#1024
-    ldr r1, [r1] @ get the address stored in buffer
-
-main_zero_buffer:
-    @ fill it with 0
-    cmp r0, #0
-    beq main_buffer_filled
-    strb r2, [r1], #1 @ store a 0, and move to the next location
-    sub r0, r0, #1
-    b main_zero_buffer
+    @ zero the buffer
     
+    push {ip, lr}
+    bl zero_buffer
+    pop {ip, lr}
 
-main_buffer_filled:
     ldr r0, =number
     mov r1, #4
 
