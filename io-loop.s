@@ -1,13 +1,13 @@
 .data
 
-hello:
-    .asciz "hello world\n"
+shell_prompt:
+    .asciz "asm-calc > "
 
 number:
     .asciz "2018"
 
-digit:
-    .asciz "%p\n"
+newline:
+    .asciz "\n"
 
 buffer:
     .word 0x00000000
@@ -40,6 +40,7 @@ main:
     bl zero_buffer
     pop {ip, lr}
 
+    @ demo reading in an integer and then outputting a string
     ldr r0, =number
     mov r1, #4
 
@@ -53,7 +54,22 @@ main:
     bl write_out
     pop {ip, lr}
 
-main_io_loop: 
+    ldr r0, =newline
+    mov r1, #0
+    push {ip, lr}
+    bl write_out
+    pop {ip, lr}
+    
+
+    ldr r5, =shell_prompt
+main_io_loop:
+    
+    mov r1, #0
+    mov r0, r5
+    push {ip, lr}
+    bl write_out
+    pop {ip, lr}
+
     push {ip, lr}
     bl read_in
     pop {ip, lr}
