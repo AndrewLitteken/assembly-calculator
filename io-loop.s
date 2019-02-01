@@ -4,15 +4,48 @@ hello:
     .asciz "hello world\n"
 
 digit:
-    .asciz "%c\n"
+    .asciz "%p\n"
+
+buffer:
+    .word 0x00000000
 
 .text
 
 
 .globl main
 main:
-    ldr r0, =hello
-    mov r1, #0   
+    @ brk to get some space for the buffer
+    mov r7, #45
+    mov r0, #0
+    svc #0
+
+    ldr r1, =#1024
+    add r0, r0, r1
+    mov r7, #45
+    svc #0
+
+    @ put it in the buffer location
+    ldr r1, =#1024
+    sub r0, r0, r1
+    ldr r1, =buffer
+    str r0, [r1]
+
+    mov r2, #0
+    ldr r0, =#1024
+    ldr r1, [r1] @ get the address stored in buffer
+
+main_zero_buffer:
+    @ fill it with 0
+    cmp r0, #0
+    beq main_buffer_filled
+    strb r2, [r1], #1 @ store a 0, and move to the next location
+    sub r0, r0, #1
+    b main_zero_buffer
+    
+
+main_buffer_filled:
+    ldr r0, =#-1024
+    mov r1, #1   
  
     push {ip, lr}
     bl write_out
@@ -122,9 +155,9 @@ itos:
     ldr r4, [fp, #-4] @ number
     mov r5, #0 @ length counter
     mov r6, #1 @ order of magnitude
+    mov r7, #10
 
 itos_len_count:
-    mov r7, #10
     mul r6, r6, r7
 
     mov r0, r4 @ get args ready for division
@@ -145,15 +178,11 @@ itos_len_count:
     mul r4, r4, r6 @ change sign for next step
 
 itos_alloc:
+    ldr r0, =buffer
+    ldr r0, [r0]
     add r5, r5, #1
-    push {ip, lr} @ allocate some space for this string
-    mov r1, r5
-    mov r0, #45
-    svc #0
-    pop {ip, lr}
-    
     cmp r6, #0 @ if was found to be negative, put a "-" in front
-    bne itos_fill_buffer
+    bge itos_fill_buffer
     mov r6, #45
     strb r6, [r0], #1 @ load the dash in
     sub r5, r5, #1
@@ -161,35 +190,39 @@ itos_alloc:
 itos_fill_buffer:
     mov r7, r5
     mov r6, #0 @ load in the null character
-    strb r6, [r0, r7] @ load null character at the end
+    strb r6, [r0, r7] @ store null character at the end
     sub r7, r7, #1
     mov r6, #10
     mov r5, r4 @ shift everything up to make room
     mov r4, r0 @ change address register because of all the function calls
 
 itos_place_char:
-    mov r0, r4
-    mov r1, r6
-    push {ip, lr} @ allocate some space for this string
-    bl mod
-    pop {ip, lr}
 
-    add r0, r0, #48
-    strb r0, [r0, r7] @ load the number character
     sub r7, r7, #1
     cmp r7, #0
     blt itos_done
+    
+    mov r0, r5
+    mov r1, r6
+    push {ip, lr} @ find ones place
+    bl mod
+    pop {ip, lr}
+    
+    add r0, r0, #48
+    strb r0, [r4, r7] @ store the number character
    
-    mov r0, r4
+    mov r0, r5
     mov r1, r6 
-    push {ip, lr} @ allocate some space for this string
+    push {ip, lr} @ take off order of magnitude
     bl div
     pop {ip, lr}
 
-    mov r4, r0
+    mov r5, r0
+    b itos_place_char
 
 itos_done:
-    
+    ldr r0, =buffer
+    ldr r0, [r0]
 
 itos_epi:
     @ Epilogue
