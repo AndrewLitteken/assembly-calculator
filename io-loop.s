@@ -14,6 +14,7 @@ buffer:
 
 .text
 
+@ A NOTE: If we need to, we can do and input buffer and an output buffer
 
 .globl main
 main:
@@ -59,9 +60,53 @@ main_buffer_filled:
     push {ip, lr}
     bl write_out
     pop {ip, lr}
- 
+
+main_io_loop: 
+    push {ip, lr}
+    bl read_in
+    pop {ip, lr}
+    @ result is in r0 now
+
+    @ Calls to calculator stuff go in here
+
+    mov r1, #0
+    push {ip, lr}
+    bl write_out
+    pop {ip, lr}
+
+    b main_io_loop
+
     mov r7, #1 @ exit system call code
     svc #0 @ call to supervisor mode
+
+.globl zero_buffer @ just zero the buffer entirely
+zero_buffer:
+    @ Prologue
+    push {fp}
+    mov fp, sp
+    push {r4-r10}
+   
+    @ basically just count up and put a null character in each
+    ldr r0, =#1024
+    mov r1, #0
+    ldr r2, =buffer
+    ldr r2, [r2]
+    mov r3, #0
+
+zero_loop:
+    cmp r1, r0
+    beq zero_done
+    strb r3, [r2, r1]
+    add r1, r1, #1
+    b zero_loop
+
+zero_done: 
+    @ Epilogue
+    pop {r4-r10}
+    mov sp, fp
+    pop {fp}
+    bx lr
+    
 
 .globl read_in @ read in, outputs a buffer, no args
 read_in:
@@ -71,12 +116,31 @@ read_in:
     push {r4-r10}
 
     @ Call to supervisor mode for read (3)
-    mov r1, #0 @ file descriptor to bring input from stdin 
-    mov r7, #3
+    ldr r1, =buffer @ get address of address of buffer
+    ldr r1, [r1] @ get address to buffer
+
+    mov r4, r1
+    push {ip, lr}
+    bl zero_buffer
+    pop {ip, lr}
+    mov r1, r4
+    
+
+read_in_loop:
+    mov r0, #0 @ load in file descriptor
+    ldr r2, =#1024 @ space to place
+    mov r7, #3 @ r7 for read
     svc #0
 
+    ldr r1, =buffer @ load in address to address to buffer
+    ldr r1, [r1] @ load in address to buffer
+
+    ldr r0, [r1] @ load in first byte
+    cmp r0, #0 @ check to see if still 0
+    beq read_in_loop @ if is zero, repeat
+    
     @ Epilogue
-    mov r0, r1
+    mov r0, r1 @ move address to buffer to r0
     pop {r4-r10}
     mov sp, fp
     pop {fp}
@@ -211,6 +275,10 @@ itos:
     mov fp, sp
     push {r0}
     push {r4-r10}
+
+    push {ip, lr}
+    bl zero_buffer
+    pop {ip, lr}
 
     ldr r4, [fp, #-4] @ number
     mov r5, #0 @ length counter
