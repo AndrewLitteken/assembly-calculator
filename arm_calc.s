@@ -3,6 +3,12 @@
 shell_prompt:
     .asciz "asm-calc > "
 
+errno:
+    .word 0x00000000
+
+errmsg:
+    .asciz "Something went wrong.\n"
+
 number:
     .asciz "2018"
 
@@ -40,27 +46,6 @@ main:
     bl zero_buffer
     pop {ip, lr}
 
-    @ demo reading in an integer and then outputting a string
-    ldr r0, =number
-    mov r1, #4
-
-    push {ip, lr}
-    bl stoi
-    pop {ip, lr}
-
-    mov r1, #1 
-
-    push {ip, lr}
-    bl write_out
-    pop {ip, lr}
-
-    ldr r0, =newline
-    mov r1, #0
-    push {ip, lr}
-    bl write_out
-    pop {ip, lr}
-    
-
     ldr r5, =shell_prompt
 main_io_loop:
     
@@ -76,7 +61,32 @@ main_io_loop:
     @ result is in r0 now
 
     @ Calls to calculator stuff go in here
+    push {ip, lr}
+    bl eval_expr
+    pop {ip, lr}
 
+    ldr r2, =errno
+    ldr r3, [r2]
+    cmp r3, #0
+    beq main_write_out
+    mov r0, #0
+    str r0, [r2]
+
+    mov r1, #0
+    ldr r0, =errmsg
+    push {ip, lr}
+    bl write_out
+    pop {ip, lr}
+    b main_io_loop
+
+
+main_write_out:
+    mov r1, #1
+    push {ip, lr}
+    bl write_out
+    pop {ip, lr}
+
+    ldr r0, =newline
     mov r1, #0
     push {ip, lr}
     bl write_out
@@ -153,6 +163,156 @@ read_in_loop:
     mov sp, fp
     pop {fp}
     bx lr
+
+.globl eval_expr @ takes pointer to string start as argument
+@ returns value
+eval_expr:
+    @ Prologue
+    push {fp}
+    mov fp, sp
+    push {r0}
+    sub sp, sp, #8
+    push {r4-r10}
+    ldrb r4, [r0]
+    mov r5, #0     @ length
+    cmp r4, #45    @ 45 is "-"
+    blt eval_expr_paren
+    @ should be a number, not another expression
+    bne eval_expr_check_number
+    add r5, r5, #1
+    add r0, r0, #1
+
+eval_expr_check_number:
+    ldrb r4, [r0]
+    cmp r4, #32       @ if we find a space or a newline or right paren, return
+    beq eval_expr_value_return
+    cmp r4, #10
+    beq eval_expr_value_return
+    cmp r4, #41
+    beq eval_expr_value_return
+    cmp r4, #48
+    blt eval_expr_error
+    cmp r4, #57
+    bgt eval_expr_error
+    add r5, r5, #1
+    add r0, r0, #1
+    b eval_expr_check_number
+
+eval_expr_value_return:
+    mov r6, r0     @ save end of number
+    ldr r0, [fp, #-4]
+    mov r1, r5
+
+    push {ip, lr}
+    bl stoi
+    pop {ip, lr}   @ r0 contains value
+    mov r1, r6
+    b eval_expr_return_epilogue
+
+eval_expr_return_epilogue:
+    @ Epilogue
+    pop {r4-r10}
+    mov sp, fp
+    pop {fp}
+    bx lr
+
+eval_expr_paren:
+    add r0, r0, #1   @ find first non-space
+    ldrb r4, [r0]
+    cmp r4, #32
+    beq eval_expr_paren
+    ldrb r10, [r0]
+
+    add r0, r0, #1
+    ldrb r4, [r0]
+    cmp r4, #32
+    bne eval_expr_error
+
+eval_expr_first_arg:
+    add r0, r0, #1   @ find first non-space
+    ldrb r4, [r0]
+    cmp r4, #32
+    beq eval_expr_first_arg
+
+    push {ip, lr}  @time to recurse
+    bl eval_expr
+    pop {ip, lr}   @we have the value
+    str r0, [fp, #-8]
+
+    mov r0, r1     @new starting point
+
+eval_expr_second_arg:
+    add r0, r0, #1   @ find first non-space
+    ldrb r4, [r0]
+    cmp r4, #32
+    beq eval_expr_second_arg
+
+    push {ip, lr}  @time to recurse
+    bl eval_expr
+    pop {ip, lr}   @we have the value
+    str r0, [fp, #-12]
+
+    mov r0, r1     @new starting point
+
+eval_expr_find_end:
+    ldrb r4, [r0]
+    cmp r4, #32
+    add r0, r0, #1   @ find first non-space
+    beq eval_expr_second_arg
+
+    cmp r4, #41      @ was it a close paren?
+    bne eval_expr_error
+    mov r9, r0
+
+    ldr r0, [fp, #-8]
+    ldr r1, [fp, #-12]
+
+    cmp r10, #43
+    beq eval_expr_add
+    cmp r10, #45
+    beq eval_expr_sub
+    cmp r10, #42
+    beq eval_expr_mul
+    cmp r10, #47
+    beq eval_expr_div
+    cmp r10, #37
+    beq eval_expr_mod
+    b eval_expr_error
+
+eval_expr_add:
+    add r0, r0, r1
+    mov r1, r9
+    b eval_expr_return_epilogue
+
+eval_expr_sub:
+    sub r0, r0, r1
+    mov r1, r9
+    b eval_expr_return_epilogue
+
+eval_expr_mul:
+    mul r0, r0, r1
+    mov r1, r9
+    b eval_expr_return_epilogue
+
+eval_expr_div:
+    push {ip, lr}
+    bl div
+    pop {ip, lr}
+    mov r1, r9
+    b eval_expr_return_epilogue
+
+eval_expr_mod:
+    push {ip, lr}
+    bl mod
+    pop {ip, lr}
+    mov r1, r9
+    b eval_expr_return_epilogue
+
+eval_expr_error:
+    ldr r1, =errno
+    mov r2, #-1
+    str r2, [r1]
+    b eval_expr_return_epilogue
 
 .globl write_out @ write to stdout, takes buffer, and type as argument
 @ type is 0 for string and 1 for integer
