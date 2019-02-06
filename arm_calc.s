@@ -290,7 +290,7 @@ eval_expr_sub:
     b eval_expr_return_epilogue
 
 eval_expr_mul:
-    mul r0, r0, r1
+    mul r0, r1, r0
     mov r1, r9
     b eval_expr_return_epilogue
 
@@ -417,17 +417,17 @@ stoi_count_back:
     beq stoi_done_neg
     @ adjust for ascii, adjust with multiplier and add to accumulator
     sub r4, r4, #48
-    mul r4, r4, r3
+    mul r4, r3, r4
     add r0, r0, r4
     sub r2, r2, #1
     @ adjust accumulator and start again
-    mul r3, r3, r7
+    mul r3, r7, r3
     b stoi_count_back
 
 @ multiply by one if found a dash
 stoi_done_neg:
     mov r7, #-1
-    mul r0, r0, r7    
+    mul r0, r7, r0    
 
 stoi_epi:
     @ Epilogue
@@ -455,7 +455,7 @@ itos:
 
 itos_len_count:
     add r5, r5, #1 @ increment counter
-    mul r6, r6, r7 @ increment multiplier
+    mul r6, r7, r6 @ increment multiplier
 
     mov r0, r4 @ get args ready for division
     mov r1, r6
@@ -472,7 +472,7 @@ itos_len_count:
     @ add one and set flag if negative
     add r5, r5, #1
     mov r6, #-1
-    mul r4, r4, r6 @ change sign for next step
+    mul r4, r6, r4 @ change sign for next step
 
 itos_alloc:
     @ load buffer and get character
@@ -554,14 +554,14 @@ div:
     beq div_epi
     cmp r1, #0
     bge quot_pos
-    mul r1, r1, r7
+    mul r1, r7, r1
     mul r3, r7
 
 quot_pos:
     @ check for negative in divisor
     cmp r2, #0
     bge div_pos
-    mul r2, r2, r7
+    mul r2, r7, r2
     mul r3, r7
 
 div_pos:
@@ -572,7 +572,7 @@ div_pos:
     b div_pos
 
 div_comp:
-    mul r0, r0, r3 @ multiply by the sign adjustor
+    mul r0, r3, r0 @ multiply by the sign adjustor
 
 div_epi:
     @ Epilogue
@@ -599,14 +599,14 @@ mod:
     @ check for negative in quotient
     cmp r1, #0
     bge mod_pos
-    mul r1, r1, r7
+    mul r1, r7, r1
     mul r3, r7
 
 mod_pos:
     @ check for negative in divisor
     cmp r2, #0
     bge mod_div_pos
-    mul r2, r2, r7
+    mul r2, r7, r2
     mul r4, r7
 
 mod_div_pos:
@@ -624,7 +624,7 @@ mod_comp:
     @ if not, check if negative, and flip if negative
     cmp r3, #0
     bge mod_epi
-    mul r0, r0, r7
+    mul r0, r7, r0
     b mod_epi
 
 mod_signs_diff:
@@ -633,7 +633,7 @@ mod_signs_diff:
     @ flip if divisor is negative
     cmp r4, #0
     bge mod_epi
-    mul r0, r0, r7
+    mul r0, r7, r0
 
 mod_epi:
     @ Epilogue
