@@ -9,6 +9,18 @@ errno:
 errmsg:
     .asciz "Something went wrong.\n"
 
+err_paren:
+    .asciz "Parentheses must match.\n"
+
+err_whitespace:
+    .asciz "Must have whitespace between inputs.\n" 
+
+err_int:
+    .asciz "Must be a number 0-9. \n"
+
+err_oper:
+    .asciz "Invalid operator, valid operators are +-*%/. \n"
+
 number:
     .asciz "2018"
 
@@ -73,7 +85,40 @@ main_io_loop:
     str r0, [r2]
 
     mov r1, #0
+
+error_paren:
+    cmp r3, #-2
+    bne error_whitespace
+    ldr r0, =err_paren
+    b error_out
+
+error_whitespace:
+    cmp r3, #-3
+    bne error_int
+    ldr r0, =err_whitespace
+    b error_out
+
+error_int: 
+@ must be 0-9
+    cmp r3, #-4
+    bne error_oper
+    ldr r0, =err_int
+    b error_out
+
+error_oper:
+@ invalid operator
+    cmp r3, #-5
+    bne error_general
+    ldr r0, =err_oper
+    b error_out
+
+error_general:
+@ generalized error message
+
     ldr r0, =errmsg
+
+error_out:
+    
     push {ip, lr}
     bl write_out
     pop {ip, lr}
@@ -191,6 +236,7 @@ eval_expr_check_number:
     cmp r4, #41
     beq eval_expr_value_return
     cmp r4, #48
+    mov r2, #-4
     blt eval_expr_error
     cmp r4, #57
     bgt eval_expr_error
@@ -226,6 +272,7 @@ eval_expr_paren:
     add r0, r0, #1
     ldrb r4, [r0]
     cmp r4, #32
+    mov r2, #-3
     bne eval_expr_error
 
 eval_expr_first_arg:
@@ -239,7 +286,21 @@ eval_expr_first_arg:
     pop {ip, lr}   @we have the value
     str r0, [fp, #-8]
 
+    ldr r2, =errno
+    ldr r2, [r2]
+    cmp r2, #0
+    bne eval_expr_return_epilogue
+
     mov r0, r1     @new starting point
+
+    ldrb r4, [r0]
+    cmp r4, #32
+    beq eval_expr_second_arg
+    mov r2, #-3
+    cmp r4, #41
+    bne eval_expr_error
+    mov r2, #-2
+    b eval_expr_error
 
 eval_expr_second_arg:
     add r0, r0, #1   @ find first non-space
@@ -252,6 +313,12 @@ eval_expr_second_arg:
     pop {ip, lr}   @we have the value
     str r0, [fp, #-12]
 
+    ldr r2, =errno
+    ldr r2, [r2]
+    cmp r2, #0
+    bne eval_expr_return_epilogue
+
+
     mov r0, r1     @new starting point
 
 eval_expr_find_end:
@@ -261,6 +328,7 @@ eval_expr_find_end:
     beq eval_expr_second_arg
 
     cmp r4, #41      @ was it a close paren?
+    mov r2, #-2      @ specific error value
     bne eval_expr_error
     mov r9, r0
 
@@ -277,6 +345,7 @@ eval_expr_find_end:
     beq eval_expr_div
     cmp r10, #37
     beq eval_expr_mod
+    mov r2, #-5
     b eval_expr_error
 
 eval_expr_add:
@@ -290,7 +359,7 @@ eval_expr_sub:
     b eval_expr_return_epilogue
 
 eval_expr_mul:
-    mul r0, r0, r1
+    mul r0, r1, r0
     mov r1, r9
     b eval_expr_return_epilogue
 
@@ -310,7 +379,7 @@ eval_expr_mod:
 
 eval_expr_error:
     ldr r1, =errno
-    mov r2, #-1
+    @loaded custom error number
     str r2, [r1]
     b eval_expr_return_epilogue
 
@@ -417,17 +486,17 @@ stoi_count_back:
     beq stoi_done_neg
     @ adjust for ascii, adjust with multiplier and add to accumulator
     sub r4, r4, #48
-    mul r4, r4, r3
+    mul r4, r3, r4
     add r0, r0, r4
     sub r2, r2, #1
     @ adjust accumulator and start again
-    mul r3, r3, r7
+    mul r3, r7, r3
     b stoi_count_back
 
 @ multiply by one if found a dash
 stoi_done_neg:
     mov r7, #-1
-    mul r0, r0, r7    
+    mul r0, r7, r0    
 
 stoi_epi:
     @ Epilogue
@@ -455,7 +524,7 @@ itos:
 
 itos_len_count:
     add r5, r5, #1 @ increment counter
-    mul r6, r6, r7 @ increment multiplier
+    mul r6, r7, r6 @ increment multiplier
 
     mov r0, r4 @ get args ready for division
     mov r1, r6
@@ -472,7 +541,7 @@ itos_len_count:
     @ add one and set flag if negative
     add r5, r5, #1
     mov r6, #-1
-    mul r4, r4, r6 @ change sign for next step
+    mul r4, r6, r4 @ change sign for next step
 
 itos_alloc:
     @ load buffer and get character
@@ -554,14 +623,14 @@ div:
     beq div_epi
     cmp r1, #0
     bge quot_pos
-    mul r1, r1, r7
+    mul r1, r7, r1
     mul r3, r7
 
 quot_pos:
     @ check for negative in divisor
     cmp r2, #0
     bge div_pos
-    mul r2, r2, r7
+    mul r2, r7, r2
     mul r3, r7
 
 div_pos:
@@ -572,7 +641,7 @@ div_pos:
     b div_pos
 
 div_comp:
-    mul r0, r0, r3 @ multiply by the sign adjustor
+    mul r0, r3, r0 @ multiply by the sign adjustor
 
 div_epi:
     @ Epilogue
@@ -599,14 +668,14 @@ mod:
     @ check for negative in quotient
     cmp r1, #0
     bge mod_pos
-    mul r1, r1, r7
+    mul r1, r7, r1
     mul r3, r7
 
 mod_pos:
     @ check for negative in divisor
     cmp r2, #0
     bge mod_div_pos
-    mul r2, r2, r7
+    mul r2, r7, r2
     mul r4, r7
 
 mod_div_pos:
@@ -624,7 +693,7 @@ mod_comp:
     @ if not, check if negative, and flip if negative
     cmp r3, #0
     bge mod_epi
-    mul r0, r0, r7
+    mul r0, r7, r0
     b mod_epi
 
 mod_signs_diff:
@@ -633,7 +702,7 @@ mod_signs_diff:
     @ flip if divisor is negative
     cmp r4, #0
     bge mod_epi
-    mul r0, r0, r7
+    mul r0, r7, r0
 
 mod_epi:
     @ Epilogue
