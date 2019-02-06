@@ -9,6 +9,18 @@ errno:
 errmsg:
     .asciz "Something went wrong.\n"
 
+err_paren:
+    .asciz "Parentheses must match.\n"
+
+err_whitespace:
+    .asciz "Must have whitespace between inputs.\n" 
+
+err_int:
+    .asciz "Must be a number 0-9. \n"
+
+err_oper:
+    .asciz "Invalid operator, valid operators are +-*%/. \n"
+
 number:
     .asciz "2018"
 
@@ -73,7 +85,40 @@ main_io_loop:
     str r0, [r2]
 
     mov r1, #0
+
+error_paren:
+    cmp r3, #-2
+    bne error_whitespace
+    ldr r0, =err_paren
+    b error_out
+
+error_whitespace:
+    cmp r3, #-3
+    bne error_int
+    ldr r0, =err_whitespace
+    b error_out
+
+error_int: 
+@ must be 0-9
+    cmp r3, #-4
+    bne error_oper
+    ldr r0, =err_int
+    b error_out
+
+error_oper:
+@ invalid operator
+    cmp r3, #-5
+    bne error_general
+    ldr r0, =err_oper
+    b error_out
+
+error_general:
+@ generalized error message
+
     ldr r0, =errmsg
+
+error_out:
+    
     push {ip, lr}
     bl write_out
     pop {ip, lr}
@@ -191,6 +236,7 @@ eval_expr_check_number:
     cmp r4, #41
     beq eval_expr_value_return
     cmp r4, #48
+    mov r2, #-4
     blt eval_expr_error
     cmp r4, #57
     bgt eval_expr_error
@@ -226,6 +272,7 @@ eval_expr_paren:
     add r0, r0, #1
     ldrb r4, [r0]
     cmp r4, #32
+    mov r2, #-3
     bne eval_expr_error
 
 eval_expr_first_arg:
@@ -239,7 +286,21 @@ eval_expr_first_arg:
     pop {ip, lr}   @we have the value
     str r0, [fp, #-8]
 
+    ldr r2, =errno
+    ldr r2, [r2]
+    cmp r2, #0
+    bne eval_expr_return_epilogue
+
     mov r0, r1     @new starting point
+
+    ldrb r4, [r0]
+    cmp r4, #32
+    beq eval_expr_second_arg
+    mov r2, #-3
+    cmp r4, #41
+    bne eval_expr_error
+    mov r2, #-2
+    b eval_expr_error
 
 eval_expr_second_arg:
     add r0, r0, #1   @ find first non-space
@@ -252,6 +313,12 @@ eval_expr_second_arg:
     pop {ip, lr}   @we have the value
     str r0, [fp, #-12]
 
+    ldr r2, =errno
+    ldr r2, [r2]
+    cmp r2, #0
+    bne eval_expr_return_epilogue
+
+
     mov r0, r1     @new starting point
 
 eval_expr_find_end:
@@ -261,6 +328,7 @@ eval_expr_find_end:
     beq eval_expr_second_arg
 
     cmp r4, #41      @ was it a close paren?
+    mov r2, #-2      @ specific error value
     bne eval_expr_error
     mov r9, r0
 
@@ -277,6 +345,7 @@ eval_expr_find_end:
     beq eval_expr_div
     cmp r10, #37
     beq eval_expr_mod
+    mov r2, #-5
     b eval_expr_error
 
 eval_expr_add:
@@ -310,7 +379,7 @@ eval_expr_mod:
 
 eval_expr_error:
     ldr r1, =errno
-    mov r2, #-1
+    @loaded custom error number
     str r2, [r1]
     b eval_expr_return_epilogue
 
