@@ -21,8 +21,8 @@ err_int:
 err_oper:
     .asciz "Invalid operator, valid operators are +-*%/. \n"
 
-number:
-    .asciz "2018"
+err_end:
+    .asciz "There can only be one expression per line of input \n"
 
 newline:
     .asciz "\n"
@@ -80,7 +80,23 @@ main_io_loop:
     ldr r2, =errno
     ldr r3, [r2]
     cmp r3, #0
-    beq main_write_out
+    bne process_error
+
+check_end:    
+    ldrb r4, [r1]
+    cmp r4, #41
+    mov r3, #-2
+    beq process_error
+    cmp r4, #32
+    add r1, r1, #1
+    beq check_end
+    cmp r4, #10
+    beq main_write_out    
+    mov r1, #0
+    ldr r0, =err_end
+    b error_out
+
+process_error:
     mov r0, #0
     str r0, [r2]
 
