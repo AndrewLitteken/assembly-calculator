@@ -10,11 +10,19 @@ To run this, simply type `./arm_calc` and you're off to the races.  This takes i
 
 As example use:
 ```
-arm-calc > (+ 1 2)
-3
-arm-calc > (+ (* 2 2) 2)
-6
+arm-calc> 42
+42
+arm-calc> (+ 30 12)
+42
+arm-calc> (+ (* 8 5) 2)
+42
+arm-calc> (    + (  *   8   5  ) 2  )
+42
 ```
 
 ## Context and Historical Importance
+This calculator takes a step back into the days before compilers, and when code had to be painstakingly debugged.  Thankfully, we did not have to share a massive mainframe with other people, and we do not have to punch our code onto cards, but it did teach us the value of the resources that we have at out disposal.
 
+Assembly lanaguage is still at the crux of all computing that is done today.  It may not be as understood by everyone that is programming a computer, but an understanding of it can be essential in developing and creating new tools.  Without this understanding, we risk becoming lazy and taking the systems underlying our current tools for granted.
+
+Additionally, this project illuminates how to properly manage the resources, and the benefits of the systems that have been develop over time to make sure that programs are not clobbering their own data values, and can be as efficient as we desire them to be.  Without the guidelines that have been brough about, assembly language would be even more inscrutable than it already is.
